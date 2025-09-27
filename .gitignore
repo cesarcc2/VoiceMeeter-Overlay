@@ -1,0 +1,63 @@
+# .NET / Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.cache
+*.ide
+
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+**/TestResult*/
+*.trx
+*.coverage
+*.coveragexml
+msbuild.binlog
+
+# Rider / ReSharper
+.idea/
+*.sln.iml
+_ReSharper*/
+*.DotSettings.user
+
+# VS Code (optional – ignore workspace-local settings)
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+
+# Publish/installer artifacts
+installer/dist/
+*.msix
+*.msixbundle
+*.appx
+*.appxbundle
+*.appinstaller
+*.msi
+*.exe
+
+# Certificates/keys
+*.pfx
+*.snk
+*.cer
+
+# Logs (repo-local)
+logs/
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Temporary
+~$*
+*.tmp
+*.temp

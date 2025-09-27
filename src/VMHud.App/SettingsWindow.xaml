@@ -1,0 +1,107 @@
+<Window x:Class="VMHud.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="VMHud Settings" Height="420" Width="520" MinHeight="360" MinWidth="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <TabControl>
+            <TabItem Header="General">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Opacity" Width="80" VerticalAlignment="Center"/>
+                        <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="1.0" TickFrequency="0.05" IsSnapToTickEnabled="True" Width="220" ValueChanged="OpacitySlider_ValueChanged"/>
+                        <TextBlock Text="{Binding ElementName=OpacitySlider, Path=Value, StringFormat=F2}" Margin="8,0,0,0" Width="40"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,0,0,8">
+                        <TextBlock Text="Scale" Width="80" VerticalAlignment="Center"/>
+                        <Slider x:Name="ScaleSlider" Minimum="0.5" Maximum="3.0" TickFrequency="0.1" IsSnapToTickEnabled="True" Width="220" ValueChanged="ScaleSlider_ValueChanged"/>
+                        <TextBlock Text="{Binding ElementName=ScaleSlider, Path=Value, StringFormat=F2}" Margin="8,0,0,0" Width="40"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2">
+                        <CheckBox x:Name="ShowVolumesCheck" Content="Show volume sliders" Checked="ShowVolumesCheck_Changed" Unchecked="ShowVolumesCheck_Changed"/>
+                        <CheckBox x:Name="StartupCheck" Content="Start with Windows" Checked="StartupCheck_Changed" Unchecked="StartupCheck_Changed"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Theme">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <!-- Presets -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Preset" Width="120" VerticalAlignment="Center"/>
+                        <ComboBox x:Name="PresetCombo" Width="180">
+                            <ComboBoxItem Content="Dark Translucent"/>
+                            <ComboBoxItem Content="Dark Opaque"/>
+                            <ComboBoxItem Content="Light Translucent"/>
+                            <ComboBoxItem Content="Light Opaque"/>
+                            <ComboBoxItem Content="High Contrast"/>
+                        </ComboBox>
+                        <Button Content="Apply" Width="80" Margin="8,0,0,0" Click="ApplyPreset_Click"/>
+                    </StackPanel>
+                    <!-- Individual colors -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Overlay Background" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="BgPreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource OverlayBackgroundBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickBg_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Overlay Border" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="BorderPreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource OverlayBorderBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickBorder_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="A Bus (On)" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="AonPreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource ABusOnBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickAOn_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="B Bus (On)" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="BonPreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource BBusOnBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickBOn_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Tile (Off)" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="OffPreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource OffTileBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickOff_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Hardware Name" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="HwNamePreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource HardwareNameBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickHwName_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Left">
+                        <TextBlock Text="Virtual Name" Width="120" VerticalAlignment="Center"/>
+                        <Rectangle x:Name="VirtNamePreview" Width="40" Height="18" RadiusX="3" RadiusY="3" Fill="{DynamicResource VirtualNameBrush}" Stroke="#40000000"/>
+                        <Button Content="Pick…" Width="80" Margin="8,0,0,0" Click="PickVirtName_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        </ScrollViewer>
+        <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Reset Position" Width="120" Margin="0,0,16,0" Click="Reset_Click"/>
+            <Button Content="OK" Width="80" Margin="0,0,8,0" IsDefault="True" Click="Ok_Click"/>
+            <Button Content="Cancel" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

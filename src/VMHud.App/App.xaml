@@ -1,0 +1,16 @@
+<Application x:Class="VMHud.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VMHud.App">
+    <Application.Resources>
+        <local:BooleanToBrushConverter x:Key="BoolToBrush" />
+        <!-- Theme brushes (overridden by ThemeManager on startup) -->
+        <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#B0000000"/>
+        <SolidColorBrush x:Key="OverlayBorderBrush" Color="#20FFFFFF"/>
+        <SolidColorBrush x:Key="ABusOnBrush" Color="#3DD38E"/>
+        <SolidColorBrush x:Key="BBusOnBrush" Color="#499BF5"/>
+        <SolidColorBrush x:Key="OffTileBrush" Color="#60AAAAAA"/>
+        <SolidColorBrush x:Key="HardwareNameBrush" Color="#CCFFFFFF"/>
+        <SolidColorBrush x:Key="VirtualNameBrush" Color="#CCFFFFFF"/>
+    </Application.Resources>
+</Application>
