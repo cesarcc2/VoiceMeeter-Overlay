@@ -41,6 +41,10 @@ public partial class MainWindow : Window
     private System.Windows.Point _mouseDownPoint;
     private readonly Dictionary<int, float> _pendingStripGains = new();
     private readonly Dictionary<int, float> _pendingBusGains = new();
+    private bool _autoHideEnabled;
+    private TimeSpan _autoHideTimeout = TimeSpan.FromSeconds(2);
+    private DateTime _lastInteractionUtc = DateTime.UtcNow;
+    private DispatcherTimer? _autoHideTimer;
     private CancellationTokenSource? _gainCts;
     private Task? _gainTask;
 
@@ -75,12 +79,21 @@ public partial class MainWindow : Window
             Top = s.Y;
             if (s.Opacity is >= 0.2 and <= 1.0) Opacity = s.Opacity;
             if (s.Scale is >= 0.5 and <= 3.0) ApplyScale(s.Scale); else ApplyScale(1.0);
-            if (DataContext is MatrixViewModel mvm) mvm.ShowVolumes = s.ShowVolumes;
+            if (DataContext is MatrixViewModel mvm)
+            {
+                mvm.ShowVolumes = s.ShowVolumes;
+                mvm.AutoHideEnabled = s.AutoHide;
+            }
+            _autoHideEnabled = s.AutoHide;
         }
 
         // Start realtime gain worker (latest value wins)
         _gainCts = new CancellationTokenSource();
         _gainTask = Task.Run(() => GainWorker(_gainCts.Token));
+
+        _autoHideTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _autoHideTimer.Tick += (_, __) => CheckAutoHide();
+        _autoHideTimer.Start();
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -89,16 +102,19 @@ public partial class MainWindow : Window
         try { PersistSettings(); } catch { /* ignore */ }
         if (_hookHandle != IntPtr.Zero) UnhookWindowsHookEx(_hookHandle);
         try { _gainCts?.Cancel(); _gainTask?.Wait(100); } catch { }
+        try { _autoHideTimer?.Stop(); } catch { }
         VMHud.Core.Diagnostics.Log.Info("MainWindow closing");
     }
 
     private void HeaderBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        RegisterInteraction();
         try { DragMove(); PersistSettings(); } catch { }
     }
 
     private void Window_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        RegisterInteraction();
         // Do not start a window drag if the press began over an interactive control
         if (e.OriginalSource is DependencyObject origin && IsOverInteractiveElement(origin))
         {
@@ -112,6 +128,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        RegisterInteraction();
         if (!_dragCandidate) return;
         if (e.LeftButton != MouseButtonState.Pressed) { _dragCandidate = false; return; }
         var p = e.GetPosition(this);
@@ -127,6 +144,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        RegisterInteraction();
         _dragCandidate = false;
     }
 
@@ -134,12 +152,11 @@ public partial class MainWindow : Window
     {
         if (Visibility == Visibility.Visible)
         {
-            Hide();
+            HideOverlay();
         }
         else
         {
-            Show();
-            Activate();
+            ShowOverlay();
         }
     }
 
@@ -182,8 +199,7 @@ public partial class MainWindow : Window
             bool wasVisible = Visibility == Visibility.Visible;
             if (!wasVisible)
             {
-                Show();
-                Activate();
+                ShowOverlay();
             }
             _autoHideOnRelease = wasVisible; // if visible before press, hide on release
         }
@@ -192,7 +208,7 @@ public partial class MainWindow : Window
             // Release behavior
             if (_autoHideOnRelease)
             {
-                Hide();
+                HideOverlay();
             }
             _autoHideOnRelease = false;
         }
@@ -218,6 +234,33 @@ public partial class MainWindow : Window
         style &= ~WS_EX_TRANSPARENT;
         SetWindowLong(_hwnd, GWL_EXSTYLE, style);
         UpdateInteractionVisual(isInteractive: true);
+    }
+
+    private void ShowOverlay()
+    {
+        Show();
+        Activate();
+        RegisterInteraction();
+        _autoHideTimer?.Start();
+    }
+
+    private void HideOverlay()
+    {
+        Hide();
+        // Keep timer running; it will check state next time shown
+    }
+
+    private void RegisterInteraction()
+    {
+        _lastInteractionUtc = DateTime.UtcNow;
+    }
+
+    private void CheckAutoHide()
+    {
+        if (!_autoHideEnabled) return;
+        if (Visibility != Visibility.Visible) return;
+        if (DateTime.UtcNow - _lastInteractionUtc < _autoHideTimeout) return;
+        HideOverlay();
     }
 
     private void UpdateInteractionVisual(bool isInteractive)
@@ -284,11 +327,12 @@ public partial class MainWindow : Window
     {
         if (value < 0.2) value = 0.2; if (value > 1.0) value = 1.0;
         Opacity = value;
-        try { Settings.Save(new Settings(Left, Top, Opacity, _scale)); } catch { }
+        PersistSettings();
     }
 
     private void Tile_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        RegisterInteraction();
         // Always allow tile clicks
         if (MatrixController is null) return;
         if (sender is not System.Windows.Controls.Border cell) return;
@@ -335,6 +379,7 @@ public partial class MainWindow : Window
         if (MatrixController is null) return;
         if (sender is not System.Windows.Controls.Slider s) return;
         if (s.DataContext is not StripViewModel svm) return;
+        RegisterInteraction();
         Log.Info($"UI StripVolume ValueChanged: strip={svm.Id} value={e.NewValue:F2} adjusting={svm.IsAdjustingVolume}");
         if (!svm.IsAdjustingVolume) return; // send only while user is adjusting
         _pendingStripGains[svm.Id] = (float)e.NewValue;
@@ -345,6 +390,7 @@ public partial class MainWindow : Window
         if (MatrixController is null) return;
         if (sender is not System.Windows.Controls.Slider s) return;
         if (s.DataContext is not BusViewModel bvm) return;
+        RegisterInteraction();
         Log.Info($"UI BusVolume ValueChanged: bus={bvm.Index} value={e.NewValue:F2} adjusting={bvm.IsAdjustingGain}");
         if (!bvm.IsAdjustingGain) return; // send only while user is adjusting
         _pendingBusGains[bvm.Index] = (float)e.NewValue;
@@ -354,6 +400,7 @@ public partial class MainWindow : Window
     {
         if (sender is System.Windows.Controls.Slider s && s.DataContext is StripViewModel svm)
         {
+            RegisterInteraction();
             if (e.ClickCount == 2)
             {
                 svm.Volume = 0;
@@ -371,6 +418,7 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.Slider s && s.DataContext is StripViewModel svm)
         {
             svm.IsAdjustingVolume = false;
+            RegisterInteraction();
             Log.Info($"UI StripVolume DragCompleted: strip={svm.Id} final={svm.Volume:F2}");
             // Send final value immediately
             if (MatrixController is not null)
@@ -387,6 +435,7 @@ public partial class MainWindow : Window
     {
         if (sender is System.Windows.Controls.Slider s && s.DataContext is BusViewModel bvm)
         {
+            RegisterInteraction();
             if (e.ClickCount == 2)
             {
                 bvm.Gain = 0;
@@ -404,6 +453,7 @@ public partial class MainWindow : Window
         if (sender is System.Windows.Controls.Slider s && s.DataContext is BusViewModel bvm)
         {
             bvm.IsAdjustingGain = false;
+            RegisterInteraction();
             Log.Info($"UI BusVolume DragCompleted: bus={bvm.Index} final={bvm.Gain:F2}");
             if (MatrixController is not null)
             {
@@ -467,7 +517,7 @@ public partial class MainWindow : Window
         {
             b.LayoutTransform = new System.Windows.Media.ScaleTransform(_scale, _scale);
         }
-        try { Settings.Save(new Settings(Left, Top, Opacity, _scale)); } catch { }
+        PersistSettings();
         // Re-apply constraints in case the content size changed notably
         var wa = SystemParameters.WorkArea;
         MaxWidth = Math.Max(200, wa.Width - 32);
@@ -476,8 +526,11 @@ public partial class MainWindow : Window
 
     public void PersistSettings()
     {
-        var showVolumes = (DataContext as MatrixViewModel)?.ShowVolumes ?? false;
-        try { Settings.Save(new Settings(Left, Top, Opacity, _scale, showVolumes)); } catch { }
+        var vm = DataContext as MatrixViewModel;
+        var showVolumes = vm?.ShowVolumes ?? false;
+        var autoHide = vm?.AutoHideEnabled ?? _autoHideEnabled;
+        var autoHideSeconds = vm?.AutoHideSeconds ?? (int)_autoHideTimeout.TotalSeconds;
+        try { Settings.Save(new Settings(Left, Top, Opacity, _scale, showVolumes, autoHide, autoHideSeconds)); } catch { }
     }
 
     public void SetShowVolumes(bool on)
@@ -485,7 +538,31 @@ public partial class MainWindow : Window
         if (DataContext is MatrixViewModel) PersistSettings();
     }
 
-    private sealed record Settings(double X, double Y, double Opacity, double Scale = 1.0, bool ShowVolumes = false)
+    public void SetAutoHideEnabled(bool on)
+    {
+        _autoHideEnabled = on;
+        if (on)
+        {
+            _autoHideTimer?.Start();
+            RegisterInteraction();
+        }
+        else
+        {
+            _autoHideTimer?.Stop();
+        }
+        PersistSettings();
+    }
+
+    public void SetAutoHideSeconds(int seconds)
+    {
+        if (seconds < 1) seconds = 1;
+        if (seconds > 60) seconds = 60;
+        _autoHideTimeout = TimeSpan.FromSeconds(seconds);
+        RegisterInteraction();
+        PersistSettings();
+    }
+
+    private sealed record Settings(double X, double Y, double Opacity, double Scale = 1.0, bool ShowVolumes = false, bool AutoHide = false, int AutoHideSeconds = 2)
     {
         public static string Path => System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

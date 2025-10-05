@@ -35,6 +35,20 @@ public class MatrixViewModel : INotifyPropertyChanged
         set { if (_showVolumes != value) { _showVolumes = value; OnPropertyChanged(); } }
     }
 
+    private bool _autoHideEnabled;
+    public bool AutoHideEnabled
+    {
+        get => _autoHideEnabled;
+        set { if (_autoHideEnabled != value) { _autoHideEnabled = value; OnPropertyChanged(); } }
+    }
+
+    private int _autoHideSeconds = 2;
+    public int AutoHideSeconds
+    {
+        get => _autoHideSeconds;
+        set { if (_autoHideSeconds != value) { _autoHideSeconds = value; OnPropertyChanged(); } }
+    }
+
     public string StatusText => Status switch
     {
         BackendStatus.Connected => "Connected",

@@ -23,6 +23,18 @@ public partial class SettingsWindow : Window
         if (owner.DataContext is VMHud.Core.ViewModels.MatrixViewModel mvm)
         {
             ShowVolumesCheck.IsChecked = mvm.ShowVolumes;
+            AutoHideCheck.IsChecked = mvm.AutoHideEnabled;
+            // Initialize auto-hide seconds combo
+            var seconds = mvm.AutoHideSeconds;
+            foreach (var item in AutoHideSecondsCombo.Items)
+            {
+                if (item is System.Windows.Controls.ComboBoxItem cbi && int.TryParse(cbi.Content?.ToString(), out var val) && val == seconds)
+                {
+                    AutoHideSecondsCombo.SelectedItem = cbi;
+                    break;
+                }
+            }
+            AutoHideSecondsCombo.IsEnabled = mvm.AutoHideEnabled;
         }
         StartupCheck.IsChecked = StartupManager.IsEnabled();
         if (StartupManager.IsDevHost())
@@ -103,6 +115,30 @@ public partial class SettingsWindow : Window
         {
             mvm.ShowVolumes = ShowVolumesCheck.IsChecked == true;
             _main.SetShowVolumes(mvm.ShowVolumes);
+        }
+    }
+
+    private void AutoHideCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized) return;
+        if (_main.DataContext is VMHud.Core.ViewModels.MatrixViewModel mvm)
+        {
+            mvm.AutoHideEnabled = AutoHideCheck.IsChecked == true;
+            _main.SetAutoHideEnabled(mvm.AutoHideEnabled);
+            AutoHideSecondsCombo.IsEnabled = mvm.AutoHideEnabled;
+        }
+    }
+
+    private void AutoHideSeconds_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_initialized) return;
+        if (_main.DataContext is VMHud.Core.ViewModels.MatrixViewModel mvm)
+        {
+            if (AutoHideSecondsCombo.SelectedItem is System.Windows.Controls.ComboBoxItem cbi && int.TryParse(cbi.Content?.ToString(), out var val))
+            {
+                mvm.AutoHideSeconds = val;
+                _main.SetAutoHideSeconds(val);
+            }
         }
     }
 

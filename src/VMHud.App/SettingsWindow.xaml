@@ -29,6 +29,18 @@
                         <TextBlock Text="{Binding ElementName=ScaleSlider, Path=Value, StringFormat=F2}" Margin="8,0,0,0" Width="40"/>
                     </StackPanel>
                     <StackPanel Grid.Row="2">
+                        <CheckBox x:Name="AutoHideCheck" Content="Auto-hide overlay after 2 seconds of inactivity" Margin="0,0,0,6" Checked="AutoHideCheck_Changed" Unchecked="AutoHideCheck_Changed"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Auto-hide after" Width="120" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="AutoHideSecondsCombo" Width="120" SelectionChanged="AutoHideSeconds_Changed">
+                                <ComboBoxItem Content="1"/>
+                                <ComboBoxItem Content="2"/>
+                                <ComboBoxItem Content="3"/>
+                                <ComboBoxItem Content="5"/>
+                                <ComboBoxItem Content="10"/>
+                            </ComboBox>
+                            <TextBlock Text="seconds" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <CheckBox x:Name="ShowVolumesCheck" Content="Show volume sliders" Checked="ShowVolumesCheck_Changed" Unchecked="ShowVolumesCheck_Changed"/>
                         <CheckBox x:Name="StartupCheck" Content="Start with Windows" Checked="StartupCheck_Changed" Unchecked="StartupCheck_Changed"/>
                     </StackPanel>

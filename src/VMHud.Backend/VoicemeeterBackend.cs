@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using VMHud.Core.Contracts;
 using VMHud.Core.Models;
@@ -31,7 +32,8 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             // Attempt to locate DLL from default install directories
             VoicemeeterDllLocator.EnsureSearchPath();
             // Try to login and detect VM type
-            _connected = TryLogin(out _inputCount, out _busCount);
+            bool engineNotReady;
+            _connected = TryLogin(out _inputCount, out _busCount, out engineNotReady);
             _status = _connected ? VMHud.Core.Models.BackendStatus.Connected : VMHud.Core.Models.BackendStatus.Connecting;
             _backoffMs = 250; _nextReconnect = DateTime.UtcNow;
             _timer = new Timer(_ => Tick(), null, 200, 50);
@@ -64,15 +66,25 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
         return Task.CompletedTask;
     }
 
-    private static bool TryLogin(out int inputCount, out int busCount)
+    private static bool TryLogin(out int inputCount, out int busCount, out bool engineNotReady)
     {
         inputCount = 0;
         busCount = 8;
+        engineNotReady = false;
         // 0 = ok; <0 = not installed; >0 = retry later (engine starting)
         var rc = VoicemeeterInterop.VBVMR_Login();
         if (rc < 0) return false;
+        if (rc > 0)
+        {
+            engineNotReady = true;
+            return false;
+        }
         // Even if rc>0, try getting type — it returns 0 when engine is ready
-        if (VoicemeeterInterop.VBVMR_GetVoicemeeterType(out var type) != 0) return false;
+        if (VoicemeeterInterop.VBVMR_GetVoicemeeterType(out var type) != 0)
+        {
+            engineNotReady = true;
+            return false;
+        }
         // Map type -> input strip count and bus count
         // 1: Voicemeeter (2 HW + 1 virtual = 3), 2: Banana (3 + 2 = 5), 3: Potato (5 + 3 = 8)
         inputCount = type switch { 1 => 3, 2 => 5, 3 => 8, _ => 8 };
@@ -86,20 +98,34 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
         {
             if (!_connected)
             {
-                // Attempt reconnect with backoff
+                // Attempt reconnect with adaptive backoff
                 if (DateTime.UtcNow < _nextReconnect) return;
-                _connected = TryLogin(out _inputCount, out _busCount);
+                bool engineNotReady;
+                _connected = TryLogin(out _inputCount, out _busCount, out engineNotReady);
                 if (!_connected)
                 {
+                    var vmRunning = IsVoicemeeterProcessRunning();
                     _status = VMHud.Core.Models.BackendStatus.Connecting;
-                    _backoffMs = Math.Min(_backoffMs * 2, _maxBackoffMs);
+                    if (!vmRunning)
+                    {
+                        _backoffMs = Math.Min(2000, Math.Max(500, _backoffMs));
+                    }
+                    else if (engineNotReady)
+                    {
+                        _backoffMs = 500; // poll faster while engine initializes
+                    }
+                    else
+                    {
+                        _backoffMs = Math.Min(_backoffMs * 2, _maxBackoffMs);
+                    }
                     _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
+                    VMHud.Core.Diagnostics.Log.Info($"Voicemeeter not ready yet (engineNotReady={engineNotReady}, processRunning={vmRunning}). Next retry in {_backoffMs} ms");
                     return;
                 }
                 _status = VMHud.Core.Models.BackendStatus.Connected;
                 _backoffMs = 250;
                 _nextReconnect = DateTime.UtcNow;
-                VMHud.Core.Diagnostics.Log.Info($"Voicemeeter reconnected. inputCount={_inputCount}");
+                VMHud.Core.Diagnostics.Log.Info($"Voicemeeter connected. inputCount={_inputCount}");
             }
 
             // Throttle reads using dirty flag. Force refresh every 2s to keep labels updated.
@@ -267,5 +293,20 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             return true;
         }
         catch { return false; }
+    }
+
+    private static bool IsVoicemeeterProcessRunning()
+    {
+        try
+        {
+            return Process.GetProcessesByName("voicemeeter").Length > 0
+                || Process.GetProcessesByName("voicemeeterbanana").Length > 0
+                || Process.GetProcessesByName("voicemeeterpotato").Length > 0
+                || Process.GetProcessesByName("voicemeeter8").Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

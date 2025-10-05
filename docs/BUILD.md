@@ -41,11 +41,12 @@ dotnet test -c Debug
 
 ## Publish (single-file)
 
+To create a a installer, use Inno Setup Compiler
+
+or to compile just the app
+
 ```powershell
-dotnet publish src/VMHud.App -c Release -r win-x64 \
-  -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:PublishTrimmed=true
+dotnet publish src/VMHud.App -c Release -r win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false
 ```
 
 Artifacts will appear under `src/VMHud.App/bin/Release/net8.0-windows/win-x64/publish/`.
@@ -56,4 +57,3 @@ Copy `VoicemeeterRemote.dll` next to the published EXE or ensure the directory c
 
 - We do not redistribute Voicemeeter libraries; install Voicemeeter separately
 - If hotkey fails to register, change it in the config file and retry
-
