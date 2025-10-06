@@ -16,6 +16,7 @@ public sealed class StatusToBrushConverter : IValueConverter
             BackendStatus.Connected => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3D, 0xD3, 0x8E)), // green
             BackendStatus.Connecting => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xC1, 0x07)), // amber
             BackendStatus.Disconnected => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xE5, 0x4B, 0x4B)), // red
+            BackendStatus.Failed => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB0, 0x00, 0x20)), // deep red
             BackendStatus.Simulated => new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7A, 0x86, 0xFF)), // blue-ish
             _ => new SolidColorBrush(System.Windows.Media.Colors.White)
         };

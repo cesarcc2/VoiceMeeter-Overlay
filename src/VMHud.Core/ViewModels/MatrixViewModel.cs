@@ -55,6 +55,7 @@ public class MatrixViewModel : INotifyPropertyChanged
         BackendStatus.Connecting => "Connecting…",
         BackendStatus.Simulated => "Simulated",
         BackendStatus.Disconnected => "Disconnected",
+        BackendStatus.Failed => "Failed",
         _ => "Unknown"
     };
 

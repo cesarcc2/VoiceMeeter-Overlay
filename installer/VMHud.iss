@@ -6,8 +6,8 @@
 [Setup]
 AppId={{6F6B4D8C-9F06-41E9-9C34-1E7B8E6C7C10}
 AppName=VMHud
-AppVersion=1.0.0
-AppPublisher=Your Name or Org
+AppVersion=1.0.2
+AppPublisher=César Castro
 DefaultDirName={autopf}\VMHud
 DefaultGroupName=VMHud
 UninstallDisplayIcon={app}\VMHud.App.exe

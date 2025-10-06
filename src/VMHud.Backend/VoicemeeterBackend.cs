@@ -36,20 +36,30 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             _connected = TryLogin(out _inputCount, out _busCount, out engineNotReady);
             _status = _connected ? VMHud.Core.Models.BackendStatus.Connected : VMHud.Core.Models.BackendStatus.Connecting;
             _backoffMs = 250; _nextReconnect = DateTime.UtcNow;
-            _timer = new Timer(_ => Tick(), null, 200, 50);
             VMHud.Core.Diagnostics.Log.Info($"VoicemeeterBackend Start: connected={_connected}, inputCount={_inputCount}");
         }
         catch (DllNotFoundException)
         {
             _connected = false;
-            _status = VMHud.Core.Models.BackendStatus.Disconnected;
+            _status = VMHud.Core.Models.BackendStatus.Failed;
+            _backoffMs = 5000;
+            _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
             VMHud.Core.Diagnostics.Log.Error("Voicemeeter DLL not found");
         }
         catch
         {
             _connected = false;
-            _status = VMHud.Core.Models.BackendStatus.Disconnected;
+            _status = VMHud.Core.Models.BackendStatus.Failed;
+            _backoffMs = 5000;
+            _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
             VMHud.Core.Diagnostics.Log.Error("VoicemeeterBackend Start failed");
+        }
+        finally
+        {
+            if (_timer == null)
+            {
+                _timer = new Timer(_ => Tick(), null, 200, 50);
+            }
         }
         return Task.CompletedTask;
     }
@@ -105,18 +115,21 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
                 if (!_connected)
                 {
                     var vmRunning = IsVoicemeeterProcessRunning();
-                    _status = VMHud.Core.Models.BackendStatus.Connecting;
                     if (!vmRunning)
                     {
+                        _status = VMHud.Core.Models.BackendStatus.Connecting;
                         _backoffMs = Math.Min(2000, Math.Max(500, _backoffMs));
                     }
                     else if (engineNotReady)
                     {
+                        _status = VMHud.Core.Models.BackendStatus.Connecting;
                         _backoffMs = 500; // poll faster while engine initializes
                     }
                     else
                     {
-                        _backoffMs = Math.Min(_backoffMs * 2, _maxBackoffMs);
+                        // Unexpected failure while Voicemeeter appears to be running
+                        _status = VMHud.Core.Models.BackendStatus.Failed;
+                        _backoffMs = 5000; // fixed retry interval when failed
                     }
                     _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
                     VMHud.Core.Diagnostics.Log.Info($"Voicemeeter not ready yet (engineNotReady={engineNotReady}, processRunning={vmRunning}). Next retry in {_backoffMs} ms");
@@ -178,13 +191,17 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
         catch (DllNotFoundException)
         {
             _connected = false;
-            _status = VMHud.Core.Models.BackendStatus.Disconnected;
+            _status = VMHud.Core.Models.BackendStatus.Failed;
+            _backoffMs = 5000;
+            _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
             VMHud.Core.Diagnostics.Log.Error("Voicemeeter DLL not found during Tick");
         }
         catch
         {
             _connected = false;
-            _status = VMHud.Core.Models.BackendStatus.Disconnected;
+            _status = VMHud.Core.Models.BackendStatus.Failed;
+            _backoffMs = 5000;
+            _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
             VMHud.Core.Diagnostics.Log.Error("VoicemeeterBackend Tick error");
         }
     }

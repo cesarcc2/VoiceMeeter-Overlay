@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:VMHud.App"
         mc:Ignorable="d"
         Title="VMHud"
+        Icon="pack://siteoforigin:,,,/assets/icon.ico"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
