@@ -19,6 +19,8 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
     private readonly int _maxBackoffMs = 5000;
     private DateTime _nextReconnect = DateTime.MinValue;
     private DateTime _lastFullRefresh = DateTime.MinValue;
+    private readonly DateTime _startedUtc = DateTime.UtcNow;
+    private bool _autoLaunchAttempted;
 
     public MatrixState GetSnapshot() => _current;
     public IObservable<MatrixState> Updates => _updates;
@@ -33,10 +35,15 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             VoicemeeterDllLocator.EnsureSearchPath();
             // Try to login and detect VM type
             bool engineNotReady;
-            _connected = TryLogin(out _inputCount, out _busCount, out engineNotReady);
+            int loginRc, typeRc;
+            _connected = TryLogin2(out _inputCount, out _busCount, out engineNotReady, out loginRc, out typeRc);
             _status = _connected ? VMHud.Core.Models.BackendStatus.Connected : VMHud.Core.Models.BackendStatus.Connecting;
             _backoffMs = 250; _nextReconnect = DateTime.UtcNow;
             VMHud.Core.Diagnostics.Log.Info($"VoicemeeterBackend Start: connected={_connected}, inputCount={_inputCount}");
+            if (!_connected)
+            {
+                VMHud.Core.Diagnostics.Log.Info($"Login codes: loginRc={loginRc}, typeRc={typeRc}");
+            }
         }
         catch (DllNotFoundException)
         {
@@ -110,8 +117,11 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             {
                 // Attempt reconnect with adaptive backoff
                 if (DateTime.UtcNow < _nextReconnect) return;
+                // Ensure DLL search path is configured on each reconnect attempt (helps in edge boot scenarios)
+                try { VoicemeeterDllLocator.EnsureSearchPath(); } catch { }
                 bool engineNotReady;
-                _connected = TryLogin(out _inputCount, out _busCount, out engineNotReady);
+                int loginRc, typeRc;
+                _connected = TryLogin2(out _inputCount, out _busCount, out engineNotReady, out loginRc, out typeRc);
                 if (!_connected)
                 {
                     var vmRunning = IsVoicemeeterProcessRunning();
@@ -119,6 +129,26 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
                     {
                         _status = VMHud.Core.Models.BackendStatus.Connecting;
                         _backoffMs = Math.Min(2000, Math.Max(500, _backoffMs));
+                        // If Voicemeeter isn't running shortly after system/app startup, try to start it once.
+                        // This addresses "Start with Windows" races where VMHud launches before Voicemeeter.
+                        if (!_autoLaunchAttempted && (DateTime.UtcNow - _startedUtc) > TimeSpan.FromSeconds(8))
+                        {
+                            try
+                            {
+                                VMHud.Core.Diagnostics.Log.Info("Attempting to start Voicemeeter via Remote API...");
+                                VoicemeeterInterop.VBVMR_RunVoicemeeter(1);
+                                _autoLaunchAttempted = true;
+                            }
+                            catch (DllNotFoundException)
+                            {
+                                // Keep retrying later; DLLs may become available after Voicemeeter installation initializes
+                                VMHud.Core.Diagnostics.Log.Warn("Auto-start skipped: VoicemeeterRemote DLL not found.");
+                            }
+                            catch (Exception ex)
+                            {
+                                VMHud.Core.Diagnostics.Log.Warn($"Auto-start Voicemeeter failed: {ex.Message}");
+                            }
+                        }
                     }
                     else if (engineNotReady)
                     {
@@ -127,14 +157,15 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
                     }
                     else
                     {
-                        // Unexpected failure while Voicemeeter appears to be running
-                        _status = VMHud.Core.Models.BackendStatus.Failed;
-                        _backoffMs = 5000; // fixed retry interval when failed
+                        // Voicemeeter process is running; treat as initializing even if codes are unexpected
+                        _status = VMHud.Core.Models.BackendStatus.Connecting;
+                        _backoffMs = 500;
                     }
                     _nextReconnect = DateTime.UtcNow.AddMilliseconds(_backoffMs);
-                    VMHud.Core.Diagnostics.Log.Info($"Voicemeeter not ready yet (engineNotReady={engineNotReady}, processRunning={vmRunning}). Next retry in {_backoffMs} ms");
+                    VMHud.Core.Diagnostics.Log.Info($"Voicemeeter not ready yet (engineNotReady={engineNotReady}, processRunning={vmRunning}). Next retry in {_backoffMs} ms; loginRc={loginRc}, typeRc={typeRc}");
                     return;
                 }
+            }
                 _status = VMHud.Core.Models.BackendStatus.Connected;
                 _backoffMs = 250;
                 _nextReconnect = DateTime.UtcNow;
@@ -310,6 +341,40 @@ public sealed class VoicemeeterBackend : IMatrixStateProvider, IBackendControlle
             return true;
         }
         catch { return false; }
+    }
+
+    private static bool TryLogin2(out int inputCount, out int busCount, out bool engineNotReady, out int loginRc, out int typeRc)
+    {
+        inputCount = 0;
+        busCount = 8;
+        engineNotReady = false;
+        loginRc = -9999;
+        typeRc = -9999;
+        try
+        {
+            var rc = VoicemeeterInterop.VBVMR_Login();
+            loginRc = rc;
+            if (rc < 0) return false;
+            if (rc > 0)
+            {
+                engineNotReady = true;
+                return false;
+            }
+            var trc = VoicemeeterInterop.VBVMR_GetVoicemeeterType(out var type);
+            typeRc = trc;
+            if (trc != 0)
+            {
+                engineNotReady = true;
+                return false;
+            }
+            inputCount = type switch { 1 => 3, 2 => 5, 3 => 8, _ => 8 };
+            busCount   = type switch { 1 => 3, 2 => 5, 3 => 8, _ => 8 };
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsVoicemeeterProcessRunning()
